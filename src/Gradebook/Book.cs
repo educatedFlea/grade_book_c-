@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Gradebook
 {
@@ -18,16 +19,80 @@ namespace Gradebook
             set;
         }
     }
-    public class Book : NamedObject // Encapsulation
+
+    public interface IBook
+    {
+        void AddGrade(double grade);
+        Stats GetStats();
+        string Name { get; }
+        event GradeAddedDelegate GradeAdded;
+    }
+
+    public abstract class Book : NamedObject, IBook
+    {
+        public Book(string name) : base(name)
+        {
+        }
+
+        public abstract event GradeAddedDelegate GradeAdded;
+        public abstract void AddGrade(double grade);
+
+        public abstract Stats GetStats();
+
+    }
+    public class DiskBook : Book
+    {
+        public DiskBook(string name) : base(name)
+        {
+
+        }
+
+        public override event GradeAddedDelegate GradeAdded;
+
+        public override void AddGrade(double grade)
+        {
+            using (var writer = File.AppendText($"{Name}.txt"))
+            {
+                writer.WriteLine(grade);
+                if(GradeAdded != null)
+                {
+                    GradeAdded(this, new EventArgs());
+                }
+            }
+
+
+        }
+
+        public override Stats GetStats()
+        {
+           var result = new Stats();
+
+           using (var reader = File.OpenText($"{Name}.txt"))
+           {
+               var line = reader.ReadLine();
+               while (line != null)
+               {
+                   var number = double.Parse(line);
+                   result.Add(number);
+                   line =  reader.ReadLine();
+               }
+           }
+
+           return result;
+        }
+    }
+
+
+    public class InMemoryBook : Book // Encapsulation
     {
         private List<double> grades;
 
         public const string CATEGORY = "Science"; // static field, access by calling on the class e.g. Book.CATEGORY
 
-        public event GradeAddedDelegate GradeAdded; 
+        public override event GradeAddedDelegate GradeAdded;
 
 
-        public Book(string name) : base(name)
+        public InMemoryBook(string name) : base(name)
         {
             grades = new List<double>();
             Name = name;
@@ -39,32 +104,30 @@ namespace Gradebook
             switch (letter)
             {
                 case 'A':
-                    addGrade(90);
+                    AddGrade(90);
                     break;
 
                 case 'B':
-                    addGrade(80);
+                    AddGrade(80);
                     break;
 
                 case 'C':
-                    addGrade(70);
+                    AddGrade(70);
                     break;
 
                 case 'D':
-                    addGrade(60);
+                    AddGrade(60);
                     break;
 
                 default:
-                    addGrade(0);
+                    AddGrade(0);
                     break;
             }
         }
-        public Stats getStats()
+        public override Stats GetStats()
         {
             var result = new Stats();
-            result.Average = 0.0;
-            result.High = double.MinValue;
-            result.Low = double.MaxValue;
+           
 
             // var index = 0;
             // // "do while" loop will at least execute once
@@ -87,48 +150,24 @@ namespace Gradebook
 
             for (var index = 0; index < grades.Count; index++)
             {
-
-                result.High = Math.Max(grades[index], result.High); // Max checks the arguments passed and return the greatest one. 
-                result.Low = Math.Min(grades[index], result.Low);
-                result.Average += grades[index];
+                result.Add(grades[index]);
+               
+    
 
             }
 
 
-            result.Average /= grades.Count;
-
-            switch (result.Average)
-            {
-                case var d when d >= 90:
-                    result.Letter = 'A';
-                    break;
-
-                case var d when d >= 80:
-                    result.Letter = 'B';
-                    break;
-
-                case var d when d >= 70:
-                    result.Letter = 'C';
-                    break;
-
-                case var d when d >= 60:
-                    result.Letter = 'D';
-                    break;
-
-                default:
-                    result.Letter = 'F';
-                    break;
-            }
+           
 
             return result;
         }
 
-        public void addGrade(double grade)
+        public override void AddGrade(double grade)
         {
             if (grade <= 100 && grade >= 0)
             {
                 grades.Add(grade);
-                if(GradeAdded != null)
+                if (GradeAdded != null)
                 {
                     GradeAdded(this, new EventArgs());
                 }
